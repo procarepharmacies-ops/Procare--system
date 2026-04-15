@@ -225,11 +225,11 @@ body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(r
 
   <div class="cgrid3">
     <div class="card fu">
-      <div class="ch"><div><div class="ct">🏦 Elsanta Treasury</div><div class="cs">فرع السنطة — Cash Balance</div></div><span class="cbadge red">GAP ⚠️</span></div>
+      <div class="ch"><div><div class="ct">🏦 Elsanta Treasury</div><div class="cs">POS · Safe · Bank — فرع السنطة</div></div><span class="cbadge teal">Live</span></div>
       <div class="tcard-body" id="elsanta-treasury"><div style="color:var(--txt-d);font-size:13px;">Loading...</div></div>
     </div>
     <div class="card fu">
-      <div class="ch"><div><div class="ct">🏦 Mashala Treasury</div><div class="cs">فرع مسهله — Cash Balance</div></div><span class="cbadge teal">Balanced</span></div>
+      <div class="ch"><div><div class="ct">🏦 Mashala Treasury</div><div class="cs">POS · Safe · Bank — فرع مسهله</div></div><span class="cbadge teal">Live</span></div>
       <div class="tcard-body" id="mashala-treasury"><div style="color:var(--txt-d);font-size:13px;">Loading...</div></div>
     </div>
     <div class="card fu">
@@ -340,16 +340,45 @@ async function loadProducts(){
 async function loadTreasury(){
   try{
     const d=await get('/api/treasury');
-    d.treasury.forEach((t,i)=>{
-      const isEl=t.branch.includes('السنطة')||i===0;
-      const id=isEl?'elsanta-treasury':'mashala-treasury';
-      const gap=Math.abs(t.gap);
-      const large=gap>50000;
-      document.getElementById(id).innerHTML=`
-        <div><div class="tlabel">Current Cash (System)</div><div class="tval" style="color:var(--teal)">${fmt(t.current_cash)}</div></div>
-        <div><div class="tlabel">Actual Cash (Physical)</div><div class="tval" style="color:var(--blue);font-size:19px;">${fmt(t.actual_cash)}</div></div>
-        <div class="tgap ${large?'warn':'ok'}"><div class="tgap-label">${large?'Gap — Needs Review':'Gap — Normal'}</div><div class="tgap-val">${fmt(gap)}</div></div>
-        <div style="font-size:11px;color:var(--txt-d);">Last: ${t.last_update}</div>`;
+    // Update total treasury metric card
+    document.getElementById('m-treasury').textContent=fmtS(d.grand_total);
+
+    const typeColors={
+      'POS':'var(--blue)',
+      'Treasury':'var(--teal)',
+      'Bank':'var(--amber)',
+      'Other':'var(--txt-m)'
+    };
+    const typeIcons={'POS':'🖥️','Treasury':'🏦','Bank':'🏛️','Other':'📦'};
+
+    d.branches.forEach((branch,i)=>{
+      const id=i===0?'elsanta-treasury':'mashala-treasury';
+      let html='';
+      // Group by type
+      const pos=branch.accounts.filter(a=>a.class===1);
+      const treasury=branch.accounts.filter(a=>a.class===2);
+      const bank=branch.accounts.filter(a=>a.class===3||a.class===4);
+
+      [...pos,...treasury,...bank].forEach(a=>{
+        if(a.balance<=0) return;
+        html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--glass-b);">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:14px;">${typeIcons[a.type]||'💰'}</span>
+            <div>
+              <div style="font-size:12.5px;font-weight:500;">${a.name}</div>
+              <div style="font-size:10px;color:var(--txt-d);">${a.type} · ${a.updated}</div>
+            </div>
+          </div>
+          <div style="font-family:var(--fd);font-size:13px;font-weight:700;color:${typeColors[a.type]||'var(--teal)'};">EGP ${Math.round(a.balance).toLocaleString()}</div>
+        </div>`;
+      });
+
+      html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;">
+        <span style="font-size:11px;color:var(--txt-d);text-transform:uppercase;letter-spacing:1px;">Branch Total</span>
+        <span style="font-family:var(--fd);font-size:16px;font-weight:700;color:var(--teal);">EGP ${Math.round(branch.total).toLocaleString()}</span>
+      </div>`;
+
+      document.getElementById(id).innerHTML=html;
     });
   }catch(e){console.error('treasury',e);}
 }

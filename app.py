@@ -69,9 +69,12 @@ def api_summary():
         """)
         expiry_count = int(cursor.fetchone()[0])
 
-        # Treasury total
+        # Treasury total — real current balances from Cash_depots
         cursor.execute("""
-            SELECT ISNULL(SUM(cdc_curr_cash),0) FROM Branches_Cash_disk_close
+            SELECT ISNULL(SUM(cash_depot_current_money),0)
+            FROM Branches_cash_depots
+            WHERE cash_depot_name_ar != 'cancel'
+            AND ISNULL(cash_depot_current_money,0) > 0
         """)
         treasury = float(cursor.fetchone()[0])
 
@@ -158,30 +161,46 @@ def api_treasury():
     try:
         conn = get_conn()
         cursor = conn.cursor()
+        # Use Branches_cash_depots — real current balances
+        # class: 1=POS, 2=Treasury/Safe, 3=Bank Account, 4=Other
         cursor.execute("""
-            SELECT b.branch_name,
-                   ISNULL(SUM(c.cdc_curr_cash),0) AS current_cash,
-                   ISNULL(SUM(c.cdc_act_cash),0)  AS actual_cash,
-                   MAX(c.insert_date) AS last_update
-            FROM Branches_Cash_disk_close c
-            LEFT JOIN Branches b ON b.branch_id=c.branch_id
-            GROUP BY b.branch_name, c.branch_id
-            ORDER BY current_cash DESC
+            SELECT b.branch_name, b.branch_id,
+                   cd.cash_depot_name_ar, cd.cash_depot_name_en,
+                   cd.cash_depot_class,
+                   ISNULL(cd.cash_depot_current_money,0) AS balance,
+                   cd.update_date
+            FROM Branches_cash_depots cd
+            JOIN Branches b ON b.branch_id=cd.branch_id
+            WHERE ISNULL(cd.cash_depot_current_money,0) >= 0
+            AND cd.cash_depot_name_ar != 'cancel'
+            ORDER BY b.branch_name, cd.cash_depot_class, cd.cash_depot_id
         """)
         rows = cursor.fetchall()
         conn.close()
-        result = []
+
+        class_names = {1:'POS', 2:'Treasury', 3:'Bank', 4:'Other'}
+        branches = {}
         for r in rows:
-            curr = float(r.current_cash)
-            act  = float(r.actual_cash)
-            result.append({
-                'branch':       r.branch_name or 'Branch',
-                'current_cash': curr,
-                'actual_cash':  act,
-                'gap':          curr - act,
-                'last_update':  str(r.last_update)[:16] if r.last_update else ''
+            b = r.branch_name or 'Branch'
+            if b not in branches:
+                branches[b] = {'branch': b, 'accounts': [], 'total': 0}
+            bal = float(r.balance)
+            branches[b]['accounts'].append({
+                'name':    r.cash_depot_name_en or r.cash_depot_name_ar or '?',
+                'name_ar': r.cash_depot_name_ar or '',
+                'type':    class_names.get(r.cash_depot_class, 'Other'),
+                'class':   r.cash_depot_class,
+                'balance': bal,
+                'updated': str(r.update_date)[:16] if r.update_date else ''
             })
-        return jsonify({'treasury': result, 'total_current': sum(r['current_cash'] for r in result)})
+            branches[b]['total'] += bal
+
+        result = list(branches.values())
+        grand_total = sum(b['total'] for b in result)
+        return jsonify({
+            'branches': result,
+            'grand_total': grand_total
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
