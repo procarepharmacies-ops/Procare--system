@@ -12,17 +12,36 @@ from flask_cors import CORS
 import pyodbc
 from datetime import datetime, timedelta
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__, static_folder='dashboard')
 CORS(app)
 
+# ── DB Config from .env ───────────────────────────────
+DB_USER     = os.getenv('SQL_USER', 'ahmedibrahim')
+DB_PASSWORD = os.getenv('SQL_PASSWORD', '')
+DB_DATABASE = os.getenv('SQL_DATABASE', 'stock')
+DB_DRIVER   = os.getenv('SQL_DRIVER', 'ODBC Driver 17 for SQL Server')
+
+# Each branch can have its own server IP (port-forwarded 1433)
+BRANCH_SERVERS = {
+    'elsanta':  os.getenv('SQL_SERVER_ELSANTA', ''),
+    'mashala':  os.getenv('SQL_SERVER_MASHALA', ''),
+}
+# Default server (Elsanta) used for combined/aggregated queries
+DB_SERVER = BRANCH_SERVERS['elsanta'] or os.getenv('SQL_SERVER', '')
+
 # ── DB Connection ─────────────────────────────────────
-def get_conn():
+def get_conn(branch=None):
+    server = BRANCH_SERVERS.get(branch, DB_SERVER) if branch else DB_SERVER
     return pyodbc.connect(
-        'DRIVER={ODBC Driver 17 for SQL Server};'
-        'SERVER=DESKTOP-3A9JFL4;'
-        'DATABASE=stock;'
-        'Trusted_Connection=yes;',
+        f'DRIVER={{{DB_DRIVER}}};'
+        f'SERVER={server},1433;'
+        f'DATABASE={DB_DATABASE};'
+        f'UID={DB_USER};'
+        f'PWD={DB_PASSWORD};',
         timeout=10
     )
 
