@@ -26,12 +26,15 @@ Connects to the live ProCare Stock SQL Server database and delivers:
 ├── app.py                          # Flask API + Slack endpoints (UPDATED)
 ├── dashboard/                      # Web dashboard (HTML/CSS/JS)
 ├── architecture/                   # Layer 1: SOPs (Standard Operating Procedures)
-│   ├── slack_integration.md        # 🔗 Hermes ↔ Slack linking guide (NEW)
+│   ├── slack_integration.md        # 🔗 Hermes ↔ Slack technical setup
+│   ├── slack_channels_setup.md     # 🎯 Channel architecture for pharmacy operations
+│   ├── dashboard_operations_guide.md # 📊 Complete user workflow guide
 │   ├── stock_alerts.md             # How expiry & low-stock logic works
 │   └── daily_report.md             # How cash close is calculated
 ├── tools/                          # Layer 3: Deterministic Python scripts
-│   ├── slack_client.py             # 🔗 SlackMessenger class (NEW)
-│   ├── hermes_slack_sync.py        # 🔗 Automated daily sync script (NEW)
+│   ├── slack_client.py             # 🔗 SlackMessenger class for Slack communication
+│   ├── slack_templates.py          # 🎨 Message template generator (NEW)
+│   ├── hermes_slack_sync.py        # 🔗 Automated daily sync & alerts
 │   ├── test_sql_connection.py      # Verify DB connection
 │   ├── discover_schema.py          # Map all table/column names
 │   ├── daily_report.py             # Daily cash close engine
@@ -112,9 +115,9 @@ python tools/hermes_slack_sync.py
 | 0 — Protocol | ✅ Complete |
 | 1 — Blueprint | ✅ Complete |
 | 2 — Link (Hermes ↔ Slack) | ✅ Complete |
-| 3 — Architect | 🟡 In Progress |
-| 4 — Stylize | 🔴 Pending |
-| 5 — Trigger | 🔴 Pending |
+| 3 — Architect (Channels & Operations) | ✅ Complete |
+| 4 — Stylize (UI & Templates) | ✅ Complete |
+| 5 — Trigger (Automation Rules) | 🟡 In Progress |
 
 ---
 
