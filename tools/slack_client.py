@@ -1,6 +1,7 @@
 """
 slack_client.py - ProCare Slack Integration
 Sends pharmacy alerts and reports to Slack channel
+Uses slack_templates.py for message formatting
 """
 
 import os
@@ -9,6 +10,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+from slack_templates import SlackTemplates
 
 
 class SlackMessenger:
@@ -21,6 +23,7 @@ class SlackMessenger:
             )
         self.client = WebClient(token=token)
         self.channel = os.getenv('SLACK_CHANNEL', '#pharmacy-alerts')
+        self.templates = SlackTemplates()
 
     def send_message(self, text: str, channel: Optional[str] = None) -> bool:
         """Send a plain text message to Slack."""
@@ -57,158 +60,68 @@ class SlackMessenger:
         expiry_items: List[Dict],
         total_sales: float,
         total_tx: int,
-        report_date: str
+        report_date: str,
+        prev_sales: float = 0,
+        channel: Optional[str] = None,
+        treasury: float = 0,
+        discrepancies: int = 0
     ) -> bool:
-        """Send formatted daily report to Slack."""
-        # Build branch summary
-        branch_text = '\n'.join([
-            f"  • {b['name']}: EGP {b['total']:,.2f} ({b['tx']} tx)"
-            for b in branches
-        ])
+        """Send formatted daily report to Slack using templates."""
+        expiry_count = len([e for e in expiry_items if e['days_left'] <= 60])
+        low_stock_count = len([e for e in expiry_items if 'low_stock' in e and e['low_stock']])
 
-        # Build top products
-        products_text = '\n'.join([
-            f"  {i}. {p['name']}: EGP {p['revenue']:,.2f} (qty: {p['qty']:.0f})"
-            for i, p in enumerate(top_products[:5], 1)
-        ])
+        blocks = self.templates.daily_summary(
+            date=report_date,
+            total_sales=total_sales,
+            prev_sales=prev_sales or total_sales,
+            transaction_count=total_tx,
+            top_product=top_products[0]['name'] if top_products else 'N/A',
+            branches=branches,
+            treasury=treasury,
+            expiry_count=expiry_count,
+            low_stock_count=low_stock_count,
+            discrepancies=discrepancies
+        )
 
-        # Build expiry alerts (limit to urgent ones)
-        urgent_items = [e for e in expiry_items if e['days_left'] <= 14]
-        if urgent_items:
-            expiry_text = '\n'.join([
-                f"  🚨 {e['name']}: {e['days_left']}d left (qty: {e['qty']:.0f})"
-                for e in urgent_items[:5]
-            ])
-        else:
-            expiry_text = "  ✅ No urgent expiries"
-
-        blocks = [
-            {
-                "type": "header",
-                "text": {
-                    "type": "plain_text",
-                    "text": "📊 ProCare Daily Report",
-                    "emoji": True
-                }
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"*Date:* {report_date}\n*Total Sales:* EGP {total_sales:,.2f}\n*Transactions:* {total_tx}"
-                }
-            },
-            {
-                "type": "divider"
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"*Sales by Branch:*\n{branch_text}"
-                }
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"*Top Products:*\n{products_text}"
-                }
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"*Expiry Alerts (next 60 days):*\n{expiry_text}"
-                }
-            }
-        ]
-
-        return self.send_block_message(blocks)
+        return self.send_block_message(blocks, channel=channel or self.channel)
 
     def send_expiry_alert(
         self,
         product_name: str,
         days_left: int,
         qty: float,
-        exp_date: str
+        exp_date: str,
+        branch: str = "All",
+        channel: Optional[str] = None
     ) -> bool:
-        """Send urgent expiry alert to Slack."""
-        urgency = "🔴 URGENT" if days_left <= 7 else "🟡 WARNING"
+        """Send urgent expiry alert to Slack using templates."""
+        blocks = self.templates.expiry_alert(
+            product_name=product_name,
+            days_left=days_left,
+            qty=qty,
+            exp_date=exp_date,
+            branch=branch
+        )
 
-        blocks = [
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"{urgency} - Product Expiry Alert"
-                }
-            },
-            {
-                "type": "section",
-                "fields": [
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*Product:*\n{product_name}"
-                    },
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*Expires:*\n{exp_date}"
-                    },
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*Days Left:*\n{days_left}"
-                    },
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*Quantity:*\n{qty:.0f} units"
-                    }
-                ]
-            }
-        ]
-
-        return self.send_block_message(blocks)
+        return self.send_block_message(blocks, channel=channel or self.channel)
 
     def send_low_stock_alert(
         self,
         product_name: str,
         current_qty: float,
         reorder_point: int,
-        branch: str
+        branch: str,
+        channel: Optional[str] = None
     ) -> bool:
-        """Send low stock alert to Slack."""
-        blocks = [
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "🟠 Low Stock Alert"
-                }
-            },
-            {
-                "type": "section",
-                "fields": [
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*Product:*\n{product_name}"
-                    },
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*Branch:*\n{branch}"
-                    },
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*Current:*\n{current_qty:.0f} units"
-                    },
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*Reorder Point:*\n{reorder_point} units"
-                    }
-                ]
-            }
-        ]
+        """Send low stock alert to Slack using templates."""
+        blocks = self.templates.low_stock_alert(
+            product_name=product_name,
+            current_qty=current_qty,
+            reorder_point=reorder_point,
+            branch=branch
+        )
 
-        return self.send_block_message(blocks)
+        return self.send_block_message(blocks, channel=channel or self.channel)
 
     def test_connection(self) -> bool:
         """Test Slack connection with auth.test."""
