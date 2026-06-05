@@ -67,6 +67,7 @@ Branches        → BranchID, Name
 4. Arabic + English in all output messages
 5. `.env` holds ALL credentials — never hardcode
 6. Self-heal: on any tool failure → log → fix → update architecture SOP
+7. Slack integration via `slack_client.py` — all notifications go through SlackMessenger class
 
 ---
 
@@ -86,8 +87,11 @@ BRANCH_SECOND=Mashala
 
 ## 🏗️ Architecture Invariants
 - Layer 1: `architecture/` = SOPs in Markdown
+  - `slack_integration.md` = Hermes ↔ Slack linking guide
 - Layer 2: Navigation = Claude reasoning layer
 - Layer 3: `tools/` = Deterministic Python scripts only
+  - `slack_client.py` = SlackMessenger class for all Slack communication
+  - `hermes_slack_sync.py` = Automated daily sync (data → Slack)
 - `.tmp/` = All temp files, logs, intermediate outputs
 - Cloud payload = Slack channel + future Google Sheets
 

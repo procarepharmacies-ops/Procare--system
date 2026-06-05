@@ -20,22 +20,53 @@ Connects to the live ProCare Stock SQL Server database and delivers:
 ## 🏗️ Architecture (B.L.A.S.T. Protocol)
 
 ```
-├── claude.md              # Project Constitution (schemas, rules, invariants)
-├── .env                   # ⚠️ Credentials — NEVER commit (see .gitignore)
-├── .env.template          # Safe template — copy to .env and fill in values
-├── architecture/          # Layer 1: SOPs (Standard Operating Procedures)
-│   ├── stock_alerts.md    # How expiry & low-stock logic works
-│   └── daily_report.md   # How cash close is calculated
-├── tools/                 # Layer 3: Deterministic Python scripts
-│   ├── test_sql_connection.py   # Phase 2: Verify DB connection
-│   ├── discover_schema.py       # Phase 2: Map all table/column names
-│   ├── stock_alerts.py          # Phase 3: Expiry & low stock engine
-│   ├── daily_report.py          # Phase 3: Daily cash close engine
-│   └── slack_sender.py          # Phase 3: Slack delivery engine
-├── task_plan.md           # Phase checklist & timeline
-├── findings.md            # Research & discoveries
-└── progress.md            # Session log & error history
+├── claude.md                       # Project Constitution (schemas, rules, invariants)
+├── .env                            # ⚠️ Credentials — NEVER commit (see .gitignore)
+├── .env.template                   # Safe template — copy to .env and fill in values
+├── app.py                          # Flask API + Slack endpoints (UPDATED)
+├── dashboard/                      # Web dashboard (HTML/CSS/JS)
+├── architecture/                   # Layer 1: SOPs (Standard Operating Procedures)
+│   ├── slack_integration.md        # 🔗 Hermes ↔ Slack technical setup
+│   ├── slack_channels_setup.md     # 🎯 Channel architecture for pharmacy operations
+│   ├── dashboard_operations_guide.md # 📊 Complete user workflow guide
+│   ├── stock_alerts.md             # How expiry & low-stock logic works
+│   └── daily_report.md             # How cash close is calculated
+├── tools/                          # Layer 3: Deterministic Python scripts
+│   ├── slack_client.py             # 🔗 SlackMessenger class for Slack communication
+│   ├── slack_templates.py          # 🎨 Message template generator (NEW)
+│   ├── hermes_slack_sync.py        # 🔗 Automated daily sync & alerts
+│   ├── test_sql_connection.py      # Verify DB connection
+│   ├── discover_schema.py          # Map all table/column names
+│   ├── daily_report.py             # Daily cash close engine
+│   └── treasury_report.py          # Treasury snapshot
+├── task_plan.md                    # Phase checklist & timeline
+├── findings.md                     # Research & discoveries
+└── progress.md                     # Session log & error history
 ```
+
+---
+
+## ⚡ Quick Start
+
+```bash
+# 1. Install packages
+pip install -r requirements.txt
+
+# 2. Configure .env (add your SLACK_BOT_TOKEN)
+copy .env.template .env
+# Edit .env in your editor
+
+# 3. Run the app
+python app.py
+
+# 4. In another terminal, test Slack
+curl http://localhost:5000/api/slack/test
+
+# 5. Send a daily report
+python tools/hermes_slack_sync.py
+```
+
+For detailed setup, see **Setup** section below.
 
 ---
 
@@ -48,18 +79,31 @@ Connects to the live ProCare Stock SQL Server database and delivers:
 
 ### 2. Install dependencies
 ```bash
-pip install pyodbc pandas python-dotenv slack-sdk
+pip install -r requirements.txt
 ```
 
 ### 3. Configure credentials
 ```bash
 copy .env.template .env
-# Edit .env with your actual SQL Server and Slack credentials
+# Edit .env with your SQL Server and Slack credentials
+# IMPORTANT: Get SLACK_BOT_TOKEN from https://api.slack.com/apps
 ```
 
-### 4. Test connection
+### 4. Test database connection
 ```bash
 python tools/test_sql_connection.py
+```
+
+### 5. Test Slack integration
+```bash
+python app.py
+# In another terminal:
+curl http://localhost:5000/api/slack/test
+```
+
+### 6. Run automated sync (pulls data → sends to Slack)
+```bash
+python tools/hermes_slack_sync.py
 ```
 
 ---
@@ -70,10 +114,10 @@ python tools/test_sql_connection.py
 |-------|--------|
 | 0 — Protocol | ✅ Complete |
 | 1 — Blueprint | ✅ Complete |
-| 2 — Link | 🟡 In Progress |
-| 3 — Architect | 🔴 Pending |
-| 4 — Stylize | 🔴 Pending |
-| 5 — Trigger | 🔴 Pending |
+| 2 — Link (Hermes ↔ Slack) | ✅ Complete |
+| 3 — Architect (Channels & Operations) | ✅ Complete |
+| 4 — Stylize (UI & Templates) | ✅ Complete |
+| 5 — Trigger (Automation Rules) | 🟡 In Progress |
 
 ---
 
