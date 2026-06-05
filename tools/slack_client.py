@@ -5,11 +5,15 @@ Uses slack_templates.py for message formatting
 """
 
 import os
+import sys
 import json
 from datetime import datetime
 from typing import Dict, List, Optional
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+
+# Import from same directory
+sys.path.insert(0, os.path.dirname(__file__))
 from slack_templates import SlackTemplates
 
 
