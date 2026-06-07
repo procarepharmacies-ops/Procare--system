@@ -22,8 +22,18 @@ def get_db_connection():
     server = os.getenv('SQL_SERVER', 'DESKTOP-3A9JFL4')
     database = os.getenv('SQL_DATABASE', 'stock')
     driver = os.getenv('SQL_DRIVER', '{ODBC Driver 17 for SQL Server}')
+    username = os.getenv('SQL_USERNAME', '')
+    password = os.getenv('SQL_PASSWORD', '')
 
-    conn_str = f"DRIVER={driver};SERVER={server};DATABASE={database};Trusted_Connection=yes;"
+    if username:
+        conn_str = (
+            f"DRIVER={driver};SERVER={server},1433;DATABASE={database};"
+            f"UID={username};PWD={password};TrustServerCertificate=yes;"
+        )
+    else:
+        # Windows Authentication (only works on domain-joined Windows machines)
+        conn_str = f"DRIVER={driver};SERVER={server},1433;DATABASE={database};Trusted_Connection=yes;"
+
     return pyodbc.connect(conn_str, timeout=10)
 
 
