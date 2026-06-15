@@ -7,14 +7,30 @@ Run: py app.py
 Open: http://localhost:5000
 """
 
-from flask import Flask, jsonify, render_template_string, send_from_directory
+from flask import Flask, jsonify, render_template_string, send_from_directory, request
 from flask_cors import CORS
 import pyodbc
 from datetime import datetime, timedelta
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'tools'))
+from slack_client import SlackMessenger
 
 app = Flask(__name__, static_folder='dashboard')
 CORS(app)
+
+# ── Slack Messenger ───────────────────────────────────
+try:
+    slack_messenger = SlackMessenger()
+    slack_enabled = slack_messenger.test_connection()
+    if slack_enabled:
+        print("✅ Slack integration enabled")
+    else:
+        print("⚠️  Slack connection test failed")
+except Exception as e:
+    print(f"⚠️  Slack disabled: {e}")
+    slack_messenger = None
+    slack_enabled = False
 
 # ── DB Connection ─────────────────────────────────────
 def get_conn():
@@ -289,6 +305,95 @@ def api_purchases():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# ── API: Slack Test ──────────────────────────────────
+@app.route('/api/slack/test', methods=['GET'])
+def api_slack_test():
+    if not slack_enabled:
+        return jsonify({'status': 'disabled', 'message': 'Slack not configured'}), 503
+    try:
+        if slack_messenger.send_message("🧪 ProCare Slack integration test"):
+            return jsonify({'status': 'ok', 'message': 'Test message sent to Slack'})
+        else:
+            return jsonify({'status': 'error', 'message': 'Failed to send test message'}), 500
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# ── API: Send Daily Report to Slack ────────────────
+@app.route('/api/slack/daily-report', methods=['POST'])
+def api_slack_daily_report():
+    if not slack_enabled:
+        return jsonify({'status': 'disabled', 'message': 'Slack not configured'}), 503
+    try:
+        data = request.get_json() or {}
+        branches = data.get('branches', [])
+        top_products = data.get('top_products', [])
+        expiry_items = data.get('expiry_items', [])
+        total_sales = data.get('total_sales', 0)
+        total_tx = data.get('total_tx', 0)
+        report_date = data.get('report_date', datetime.now().strftime('%Y-%m-%d'))
+
+        if slack_messenger.send_daily_report(
+            branches=branches,
+            top_products=top_products,
+            expiry_items=expiry_items,
+            total_sales=total_sales,
+            total_tx=total_tx,
+            report_date=report_date
+        ):
+            return jsonify({'status': 'ok', 'message': 'Daily report sent to Slack'})
+        else:
+            return jsonify({'status': 'error', 'message': 'Failed to send report'}), 500
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# ── API: Send Expiry Alert to Slack ────────────────
+@app.route('/api/slack/expiry-alert', methods=['POST'])
+def api_slack_expiry_alert():
+    if not slack_enabled:
+        return jsonify({'status': 'disabled', 'message': 'Slack not configured'}), 503
+    try:
+        data = request.get_json() or {}
+        product_name = data.get('product_name', 'Unknown')
+        days_left = int(data.get('days_left', 0))
+        qty = float(data.get('qty', 0))
+        exp_date = data.get('exp_date', '')
+
+        if slack_messenger.send_expiry_alert(
+            product_name=product_name,
+            days_left=days_left,
+            qty=qty,
+            exp_date=exp_date
+        ):
+            return jsonify({'status': 'ok', 'message': 'Expiry alert sent to Slack'})
+        else:
+            return jsonify({'status': 'error', 'message': 'Failed to send alert'}), 500
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# ── API: Send Low Stock Alert to Slack ─────────────
+@app.route('/api/slack/low-stock-alert', methods=['POST'])
+def api_slack_low_stock_alert():
+    if not slack_enabled:
+        return jsonify({'status': 'disabled', 'message': 'Slack not configured'}), 503
+    try:
+        data = request.get_json() or {}
+        product_name = data.get('product_name', 'Unknown')
+        current_qty = float(data.get('current_qty', 0))
+        reorder_point = int(data.get('reorder_point', 0))
+        branch = data.get('branch', 'Unknown')
+
+        if slack_messenger.send_low_stock_alert(
+            product_name=product_name,
+            current_qty=current_qty,
+            reorder_point=reorder_point,
+            branch=branch
+        ):
+            return jsonify({'status': 'ok', 'message': 'Low stock alert sent to Slack'})
+        else:
+            return jsonify({'status': 'error', 'message': 'Failed to send alert'}), 500
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 # ── API: Health Check ─────────────────────────────────
 @app.route('/api/health')
 def api_health():
@@ -301,6 +406,7 @@ def api_health():
         return jsonify({
             'status':   'ok',
             'database': 'connected',
+            'slack':    'connected' if slack_enabled else 'disconnected',
             'branches': branches,
             'time':     datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         })
