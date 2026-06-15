@@ -124,6 +124,10 @@ def send_daily_report_to_slack(slack_messenger):
     """Generate and send daily report to Slack."""
     print("📊 Generating daily report...")
 
+    # Per docs the daily report belongs in #managers-dashboard; fall back to
+    # the default channel if that variable is not configured.
+    report_channel = os.getenv('SLACK_CHANNEL_REPORTS') or os.getenv('SLACK_CHANNEL')
+
     try:
         branches, report_date = fetch_yesterday_sales()
         products = fetch_top_products()
@@ -137,6 +141,7 @@ def send_daily_report_to_slack(slack_messenger):
         print(f"  Branches: {len(branches)}")
         print(f"  Top Products: {len(products)}")
         print(f"  Expiry Items: {len(expiry_items)}")
+        print(f"  Channel: {report_channel or '(default)'}")
 
         success = slack_messenger.send_daily_report(
             branches=branches,
@@ -144,7 +149,8 @@ def send_daily_report_to_slack(slack_messenger):
             expiry_items=expiry_items,
             total_sales=total_sales,
             total_tx=total_tx,
-            report_date=str(report_date)
+            report_date=str(report_date),
+            channel=report_channel
         )
 
         if success:
@@ -163,6 +169,9 @@ def send_urgent_expiry_alerts(slack_messenger):
     """Send alerts for items expiring in next 7 days."""
     print("🚨 Checking for urgent expiry alerts...")
 
+    # Urgent expiry alerts go to the critical alerts channel.
+    alert_channel = os.getenv('SLACK_CHANNEL_ALERTS') or os.getenv('SLACK_CHANNEL')
+
     try:
         items = fetch_expiry_items()
         urgent_items = [item for item in items if item['days_left'] <= 7 and item['days_left'] > 0]
@@ -178,7 +187,8 @@ def send_urgent_expiry_alerts(slack_messenger):
                 product_name=item['name'],
                 days_left=item['days_left'],
                 qty=item['qty'],
-                exp_date=item['exp_date']
+                exp_date=item['exp_date'],
+                channel=alert_channel
             )
 
         print(f"✅ Sent {len(urgent_items)} expiry alert(s)")
