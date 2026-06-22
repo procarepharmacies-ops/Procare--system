@@ -197,13 +197,37 @@ python tools/hermes_slack_sync.py
 
 ## 🐛 Troubleshooting
 
+### Slack received nothing from Hermes? Run the diagnostic first
+
+```bash
+python tools/slack_diagnostics.py
+```
+
+It checks every link in the chain (token → auth → channel → bot membership →
+send) and tells you in plain language exactly which step is broken and how to
+fix it. It also prints the **channel ID** to put in Hermes.
+
+The most common cause is simply that **`SLACK_BOT_TOKEN` is empty in `.env`** —
+without it the sync script aborts before sending anything.
+
 | Problem | Solution |
 |---------|----------|
 | `SLACK_BOT_TOKEN not set` | Add `SLACK_BOT_TOKEN=xoxb-...` to `.env` |
 | `invalid_auth` error | Verify bot token is correct and not expired |
 | `channel_not_found` | Ensure channel exists and bot is invited to it |
-| `not_in_channel` | Go to channel → Add bot to workspace |
+| `not_in_channel` | In the channel, run `/invite @ProCare Pharmacy` |
+| `missing_scope` (listing channels) | Add `channels:read` + `groups:read` scopes, reinstall app |
 | `ratelimit` error | Slack API rate limit hit — wait a minute and retry |
+
+### Channel routing
+
+The daily report and the urgent alerts can go to different channels:
+
+| Variable | Used for | Default |
+|----------|----------|---------|
+| `SLACK_CHANNEL` | Fallback for everything | `#pharmacy-alerts` |
+| `SLACK_CHANNEL_REPORTS` | Daily report | `#managers-dashboard` |
+| `SLACK_CHANNEL_ALERTS` | Urgent expiry alerts | `#pharmacy-alerts` |
 
 ### Check Logs
 
